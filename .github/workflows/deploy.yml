@@ -93,3 +93,12 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE }}
+
+      - name: Make package publicly readable
+        run: |
+          OWNER=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
+          curl -sf -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/orgs/$OWNER/packages/docker/enterprise-rag/visibility" \
+            -d '{"visibility": "public"}' || true

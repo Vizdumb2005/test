@@ -1,44 +1,76 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# One-time server setup + ongoing deployment script for the Oracle VM.
-# Run after: ghcr.io image is pushed and .env.production exists.
+# Server-side deployment script for the Oracle VM.
+# Run this after every GitHub Actions push to deploy the latest image.
 #
-# Prerequisites on the server:
-#   1. Docker Engine + docker compose plugin installed
-#   2. GitHub PAT with 'read:packages' scope stored at ~/.ghcr-token
-#      (create at https://github.com/settings/tokens, classic token with 'read:packages')
-#      OR run: echo "YOUR_PAT" > ~/.ghcr-token && chmod 600 ~/.ghcr-token
+# Prerequisites:
+#   1. Docker Engine + docker compose plugin installed on this server
+#   2. Either:
+#      a. The GHCR package is publicly readable (workflow sets visibility), OR
+#      b. GitHub PAT stored at ~/.ghcr-token (classic token with 'read:packages' scope):
+#         echo "ghp_your_pat_here" > ~/.ghcr-token && chmod 600 ~/.ghcr-token
+#   3. .env.production in this directory (run the generate step below if missing)
 
 APP_DIR="/opt/enterprise-rag"
 IMAGE="ghcr.io/vizdumb2005/test/enterprise-rag:latest"
 
-echo "=== Enterprise RAG - Server Deployment ==="
+echo "=== Enterprise RAG - Oracle VM Deployment ==="
 
-# Setup directories
 sudo mkdir -p "$APP_DIR"
 sudo chown "$(whoami)":"$(whoami)" "$APP_DIR"
 cd "$APP_DIR"
 
-# Check for .env.production
+# Generate .env.production if not present
 if [ ! -f .env.production ]; then
-    echo "ERROR: .env.production not found in $APP_DIR"
-    echo "Create it with: cat > .env.production <<'EOF'"
-    echo "APP_ENV=production"
-    echo "DEBUG=false"
-    echo "LOG_LEVEL=info"
-    echo "QDRANT_URL=https://773125ea-efc2-4c2c-81dd-9b4be54c5a66.europe-west6-0.gcp.cloud.qdrant.io"
-    echo "QDRANT_COLLECTION=enterprise_documents"
-    echo "QDRANT_API_KEY=<your_qdrant_api_key>"
-    echo "LLM_PROVIDER=mock"
-    echo "CORS_ORIGINS=https://vizdumb2005.github.io"
-    echo "EOF"
+    echo "Generating .env.production..."
+    cat > .env.production <<'EOF'
+APP_ENV=production
+DEBUG=false
+LOG_LEVEL=info
+QDRANT_URL=https://773125ea-efc2-4c2c-81dd-9b4be54c5a66.europe-west6-0.gcp.cloud.qdrant.io
+QDRANT_COLLECTION=enterprise_documents
+QDRANT_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6MTgyYmRkZjYtNjRjZS00YjZlLWJiNTctZjI1YTNmYzI0ZDIzIn0.Nt9ACmUJ4BWIDaWkmmTV5cO2EO_4wT6J6GVMzDlkkNE
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+EMBEDDING_BATCH_SIZE=32
+DENSE_TOP_K=30
+SPARSE_TOP_K=30
+RERANK_TOP_K=8
+HYBRID_METHOD=rrf
+HYBRID_ALPHA=0.65
+RRF_K=60
+QUERY_EXPANSION_ENABLED=true
+QUERY_EXPANSION_COUNT=3
+QUERY_EXPANSION_MODEL=gpt-4o-mini
+CHUNK_SIZE=800
+CHUNK_OVERLAP=120
+CHUNKING_STRATEGY=recursive
+CONTEXT_MAX_CHUNKS=8
+CONTEXT_MAX_CHARACTERS=30000
+LLM_PROVIDER=mock
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=1024
+API_HOST=0.0.0.0
+API_PORT=8000
+API_WORKERS=1
+MAX_UPLOAD_SIZE_MB=50
+CORS_ORIGINS=https://vizdumb2005.github.io
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_QUERY_PER_MIN=60
+RATE_LIMIT_EVAL_PER_MIN=10
+RATE_LIMIT_UPLOAD_PER_MIN=30
+EOF
+    echo ".env.production created"
+    echo "Edit QDRANT_API_KEY and LLM_API_KEY as needed"
     exit 1
 fi
 
-# Authenticate to GHCR (if token exists)
+# Authenticate to GHCR if token exists
 if [ -f ~/.ghcr-token ]; then
-    echo "Logging in to GHCR..."
-    cat ~/.ghcr-token | docker login ghcr.io -u "$(git config --global user.name 2>/dev/null || echo vizdumb2005)" --password-stdin
+    echo "Authenticating to GHCR..."
+    cat ~/.ghcr-token | docker login ghcr.io -u "${GITHUB_USER:-vizdumb2005}" --password-stdin
 fi
 
 # Pull latest image
@@ -73,26 +105,23 @@ COMPOSE
     echo "Created docker-compose.prod.yml"
 fi
 
-# Stop existing container
-echo "Stopping existing container..."
-docker-compose -f docker-compose.prod.yml down --rmi local 2>/dev/null || true
-
-# Start container
-echo "Starting container..."
-docker-compose -f docker-compose.prod.yml up -d
+# Restart with latest image
+echo "Restarting container..."
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d --force-recreate
 
 # Wait for health check
 echo "Waiting for API to become healthy..."
-for i in $(seq 1 30); do
+for i in $(seq 1 45); do
     if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
         echo "API is healthy!"
         curl -sf http://localhost:8000/health | head -c 500
         echo
         exit 0
     fi
-    echo "  Waiting... ($i/30)"
+    echo "  Waiting... ($i/45)"
     sleep 2
 done
-echo "ERROR: API failed to start within 60s"
+echo "ERROR: API failed to start within 90s"
 docker-compose -f docker-compose.prod.yml logs --tail 50
 exit 1
