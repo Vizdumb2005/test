@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
   pages: write
   id-token: write
 
@@ -22,10 +23,7 @@ env:
   APP_DIR: /opt/enterprise-rag
 
 jobs:
-  # ------------------------------------------------------------------ #
-  # Frontend: build + upload artifact for GitHub Pages
-  # ------------------------------------------------------------------ #
-  build-frontend:
+  deploy-frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,38 +46,37 @@ jobs:
           VITE_API_BASE_URL: http://${{ env.ORACLE_HOST }}:${{ env.BACKEND_PORT }}
         run: npm run build
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/dist
-
-  # ------------------------------------------------------------------ #
-  # Frontend: deploy to GitHub Pages (native action, needs its own job)
-  # ------------------------------------------------------------------ #
-  deploy-frontend:
-    needs: build-frontend
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
 
-  # ------------------------------------------------------------------ #
-  # Backend: build + deploy to Oracle VM via SSH + Docker
-  # ------------------------------------------------------------------ #
   deploy-backend:
     runs-on: ubuntu-latest
     needs: deploy-frontend
     env:
       QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify secrets are set
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "ERROR: SSH_PRIVATE_KEY secret is not set!"
+            echo "Go to: https://github.com/Vizdumb2005/test/settings/secrets/actions"
+            echo "Add a secret named 'SSH_PRIVATE_KEY' with your Oracle SSH private key"
+            exit 1
+          fi
+          if [ -z "$QDRANT_API_KEY" ]; then
+            echo "ERROR: QDRANT_API_KEY secret is not set!"
+            echo "Go to: https://github.com/Vizdumb2005/test/settings/secrets/actions"
+            echo "Add a secret named 'QDRANT_API_KEY' with your Qdrant Cloud API key"
+            exit 1
+          fi
+          echo "All secrets verified OK"
 
       - name: Build Docker image
         run: docker build -t enterprise-rag:latest .
@@ -87,22 +84,25 @@ jobs:
       - name: Save image tarball
         run: docker save enterprise-rag:latest > enterprise-rag.tar
 
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $ORACLE_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          echo "SSH key configured"
+
       - name: Upload image to Oracle VM
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ env.ORACLE_HOST }}
-          username: ${{ env.ORACLE_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "enterprise-rag.tar"
-          target: "/tmp/"
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa enterprise-rag.tar $ORACLE_USER@$ORACLE_HOST:/tmp/
+          echo "Image uploaded to Oracle VM"
 
       - name: Deploy to Oracle VM
         env:
           QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
           QDRANT_URL: ${{ env.QDRANT_URL }}
-          APP_DIR: ${{ env.APP_DIR }}
-          ORACLE_USER: ${{ env.ORACLE_USER }}
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.ORACLE_HOST }}
