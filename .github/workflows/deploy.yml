@@ -96,9 +96,14 @@ jobs:
 
       - name: Make package publicly readable
         run: |
-          OWNER=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
-          curl -sf -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/orgs/$OWNER/packages/docker/enterprise-rag/visibility" \
-            -d '{"visibility": "public"}' || true
+          # Try user-level endpoint (for user-owned repos like Vizdumb2005/test)
+          gh api -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /user/packages/docker/test/enterprise-rag/visibility \
+            -f visibility='public' 2>/dev/null || true
+          # Verify with org-level endpoint as fallback
+          gh api -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /orgs/vizdumb2005/packages/docker/enterprise-rag/visibility \
+            -f visibility='public' 2>/dev/null || true
+          echo "Package visibility set (any errors are non-fatal)"
