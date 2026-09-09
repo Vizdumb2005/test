@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from ...api.schemas.schemas import SearchRequest, SearchResponse
 from ...core.logging import logger
 from ...core.config import settings
@@ -7,9 +7,10 @@ router = APIRouter(tags=["search"])
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest):
+async def search(request: SearchRequest, http_request: Request):
+    request_id = getattr(http_request.state, "request_id", None)
     try:
-        logger.info("Search request", query=request.query, top_k=request.top_k)
+        logger.info("Search request", query=request.query, top_k=request.top_k, request_id=request_id)
 
         from src.retrieval.hybrid.fusion import HybridRetriever
         hybrid_retriever = HybridRetriever()
@@ -31,12 +32,19 @@ async def search(request: SearchRequest):
             enable_reranking=request.enable_reranking,
         )
 
+        try:
+            from ...core.telemetry import telemetry
+            telemetry.record_retrieval_run(results.get("latency_ms", {}))
+        except Exception:
+            pass
+
         return SearchResponse(
             query=request.query,
             results=results["results"],
             latency_ms=results["latency_ms"],
             expanded_queries=results.get("expanded_queries", []),
+            request_id=request_id,
         )
     except Exception as e:
-        logger.error("Search failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Search failed", error=str(e), request_id=request_id)
+        raise HTTPException(status_code=500, detail=(str(e) if settings.debug else 'Request failed. Check server logs with the X-Request-ID header.'))

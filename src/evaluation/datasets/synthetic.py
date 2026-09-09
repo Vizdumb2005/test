@@ -184,7 +184,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_001"],
             "relevant_chunk_ids": ["doc_hr_001_chunk_0"],
             "expected_answer": "Employees must work from the office at least 3 days per week with VP approval required for exceptions.",
-            "category": "HR",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -192,7 +192,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_002"],
             "relevant_chunk_ids": ["doc_hr_002_chunk_0"],
             "expected_answer": "New hires receive 15 days of paid time off in their first year.",
-            "category": "HR",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -200,7 +200,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_001"],
             "relevant_chunk_ids": ["doc_it_001_chunk_0"],
             "expected_answer": "Incident response follows a 5-step process: detect, triage, contain, eradicate, recover.",
-            "category": "IT",
+            "category": "keyword",
             "difficulty": "medium",
         },
         {
@@ -208,7 +208,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_002"],
             "relevant_chunk_ids": ["doc_it_002_chunk_0"],
             "expected_answer": "VPN access uses Duo MFA at vpn.example.com:443 with split tunneling enabled.",
-            "category": "IT",
+            "category": "keyword",
             "difficulty": "easy",
         },
         {
@@ -216,7 +216,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_001"],
             "relevant_chunk_ids": ["doc_fin_001_chunk_0"],
             "expected_answer": "Expense reports must be submitted within 30 days of the transaction.",
-            "category": "Finance",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -224,7 +224,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_002"],
             "relevant_chunk_ids": ["doc_fin_002_chunk_0"],
             "expected_answer": "Annual budgeting begins in August with department heads submitting requests by September 15.",
-            "category": "Finance",
+            "category": "keyword",
             "difficulty": "medium",
         },
         {
@@ -232,7 +232,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_legal_001"],
             "relevant_chunk_ids": ["doc_legal_001_chunk_0"],
             "expected_answer": "All personal data must comply with GDPR, CCPA, and HIPAA. Data minimization and 72-hour breach notification are required.",
-            "category": "Legal",
+            "category": "semantic",
             "difficulty": "medium",
         },
         {
@@ -240,7 +240,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_legal_002"],
             "relevant_chunk_ids": ["doc_legal_002_chunk_0"],
             "expected_answer": "Vendor contracts over $100,000 require legal review and must include data protection clauses and liability caps.",
-            "category": "Legal",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -248,7 +248,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_ops_001"],
             "relevant_chunk_ids": ["doc_ops_001_chunk_0"],
             "expected_answer": "Conference rooms are booked via the internal calendar system. Rooms up to 8 people can be booked 2 weeks in advance.",
-            "category": "Operations",
+            "category": "keyword",
             "difficulty": "easy",
         },
         {
@@ -256,7 +256,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_ops_002"],
             "relevant_chunk_ids": ["doc_ops_002_chunk_0"],
             "expected_answer": "Hotels are capped at $250 per night in major cities and $150 elsewhere.",
-            "category": "Operations",
+            "category": "keyword",
             "difficulty": "easy",
         },
         {
@@ -264,7 +264,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_003"],
             "relevant_chunk_ids": ["doc_it_003_chunk_0"],
             "expected_answer": "Rate limits are 1000 requests per minute per service account.",
-            "category": "IT",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -272,7 +272,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_security_001"],
             "relevant_chunk_ids": ["doc_security_001_chunk_0"],
             "expected_answer": "Passwords must be minimum 16 characters with complexity and rotation every 90 days.",
-            "category": "Security",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -280,7 +280,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_002"],
             "relevant_chunk_ids": ["doc_hr_002_chunk_0"],
             "expected_answer": "The 401(k) plan includes a 4% employer match.",
-            "category": "HR",
+            "category": "acronym",
             "difficulty": "easy",
         },
         {
@@ -288,7 +288,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_002"],
             "relevant_chunk_ids": ["doc_hr_002_chunk_0"],
             "expected_answer": "Parental leave provides 16 weeks fully paid for primary caregivers and 8 weeks for secondary caregivers.",
-            "category": "HR",
+            "category": "keyword",
             "difficulty": "medium",
         },
         {
@@ -296,7 +296,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_security_001"],
             "relevant_chunk_ids": ["doc_security_001_chunk_0"],
             "expected_answer": "Report suspicious emails to security@example.com.",
-            "category": "Security",
+            "category": "keyword",
             "difficulty": "easy",
         },
         {
@@ -304,7 +304,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_001"],
             "relevant_chunk_ids": ["doc_hr_001_chunk_0"],
             "expected_answer": "Equipment stipends of up to $1,500 are available for home office setups.",
-            "category": "HR",
+            "category": "semantic",
             "difficulty": "medium",
         },
         {
@@ -312,7 +312,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_legal_001"],
             "relevant_chunk_ids": ["doc_legal_001_chunk_0"],
             "expected_answer": "Breach notification must occur within 72 hours to the DPO.",
-            "category": "Legal",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -320,7 +320,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_002"],
             "relevant_chunk_ids": ["doc_fin_002_chunk_0"],
             "expected_answer": "Mid-year budget reforecasts are due June 30.",
-            "category": "Finance",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -328,7 +328,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_001"],
             "relevant_chunk_ids": ["doc_hr_001_chunk_0"],
             "expected_answer": "Core collaboration hours are 10 AM to 3 PM in the employee's local timezone.",
-            "category": "HR",
+            "category": "semantic",
             "difficulty": "medium",
         },
         {
@@ -336,7 +336,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_002"],
             "relevant_chunk_ids": ["doc_it_002_chunk_0"],
             "expected_answer": "All VPN connections are logged for 90 days.",
-            "category": "IT",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -344,7 +344,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_001"],
             "relevant_chunk_ids": ["doc_fin_001_chunk_0"],
             "expected_answer": "Approval is automatic under $500 and requires manager approval above $500.",
-            "category": "Finance",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -352,7 +352,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_001"],
             "relevant_chunk_ids": ["doc_fin_001_chunk_0"],
             "expected_answer": "Meals are capped at $100 per day for international travel.",
-            "category": "Finance",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -360,7 +360,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_002"],
             "relevant_chunk_ids": ["doc_it_002_chunk_0"],
             "expected_answer": "Contact the IT help desk at ext. 4500 for VPN issues.",
-            "category": "IT",
+            "category": "keyword",
             "difficulty": "easy",
         },
         {
@@ -368,7 +368,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_001"],
             "relevant_chunk_ids": ["doc_it_001_chunk_0"],
             "expected_answer": "P1 incidents require a response within 15 minutes and an update every 30 minutes.",
-            "category": "IT",
+            "category": "acronym",
             "difficulty": "medium",
         },
         {
@@ -376,7 +376,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_001"],
             "relevant_chunk_ids": ["doc_fin_001_chunk_0"],
             "expected_answer": "Alcohol expenses are not reimbursable.",
-            "category": "Finance",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -384,7 +384,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_legal_001"],
             "relevant_chunk_ids": ["doc_legal_001_chunk_0"],
             "expected_answer": "Data subject access requests must be fulfilled within 30 days.",
-            "category": "Legal",
+            "category": "acronym",
             "difficulty": "medium",
         },
         {
@@ -392,7 +392,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_legal_002"],
             "relevant_chunk_ids": ["doc_legal_002_chunk_0"],
             "expected_answer": "Contract renewals must be initiated 90 days before expiration.",
-            "category": "Legal",
+            "category": "exact_term",
             "difficulty": "medium",
         },
         {
@@ -400,15 +400,15 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_ops_002"],
             "relevant_chunk_ids": ["doc_ops_002_chunk_0"],
             "expected_answer": "Hotels are capped at $250 per night in major cities.",
-            "category": "Operations",
-            "difficulty": "easy",
+            "category": "multi_hop",
+            "difficulty": "hard",
         },
         {
             "query": "What is the Correlation-ID requirement for API requests?",
             "relevant_document_ids": ["doc_it_003"],
             "relevant_chunk_ids": ["doc_it_003_chunk_0"],
             "expected_answer": "All API requests must include a Correlation-ID header for tracing.",
-            "category": "IT",
+            "category": "acronym",
             "difficulty": "medium",
         },
         {
@@ -416,7 +416,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_fin_002"],
             "relevant_chunk_ids": ["doc_fin_002_chunk_0"],
             "expected_answer": "Capital expenditures over $50,000 require a business case and CFO approval.",
-            "category": "Finance",
+            "category": "keyword",
             "difficulty": "medium",
         },
         {
@@ -424,31 +424,15 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_it_002"],
             "relevant_chunk_ids": ["doc_it_002_chunk_0"],
             "expected_answer": "VPN access uses Duo MFA with push notification.",
-            "category": "IT",
+            "category": "acronym",
             "difficulty": "easy",
-        },
-        {
-            "query": "What is the catering lead time for meetings?",
-            "relevant_document_ids": ["doc_ops_001"],
-            "relevant_chunk_ids": ["doc_ops_001_chunk_0"],
-            "expected_answer": "Catering orders are handled by the admin team with 72-hour notice.",
-            "category": "Operations",
-            "difficulty": "medium",
         },
         {
             "query": "How long must incidents be logged in Jira?",
             "relevant_document_ids": ["doc_it_001"],
             "relevant_chunk_ids": ["doc_it_001_chunk_0"],
             "expected_answer": "All incidents must be logged in Jira with severity, impact, and timeline.",
-            "category": "IT",
-            "difficulty": "medium",
-        },
-        {
-            "query": "What is the contractor engagement limit?",
-            "relevant_document_ids": ["doc_legal_002"],
-            "relevant_chunk_ids": ["doc_legal_002_chunk_0"],
-            "expected_answer": "Contractors are limited to 18-month engagements with a 6-month cooling-off period before rehire.",
-            "category": "Legal",
+            "category": "acronym",
             "difficulty": "medium",
         },
         {
@@ -456,15 +440,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": ["doc_hr_002"],
             "relevant_chunk_ids": ["doc_hr_002_chunk_0"],
             "expected_answer": "Wellness benefits include a $500 annual gym stipend.",
-            "category": "HR",
-            "difficulty": "easy",
-        },
-        {
-            "query": "What is the mileage reimbursement rate?",
-            "relevant_document_ids": ["doc_fin_001"],
-            "relevant_chunk_ids": ["doc_fin_001_chunk_0"],
-            "expected_answer": "Mileage reimbursement is $0.67 per mile.",
-            "category": "Finance",
+            "category": "exact_term",
             "difficulty": "easy",
         },
         {
@@ -472,7 +448,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": [],
             "relevant_chunk_ids": [],
             "expected_answer": "I do not know based on the provided context.",
-            "category": "General",
+            "category": "hard",
             "difficulty": "hard",
             "metadata": {"out_of_scope": True},
         },
@@ -481,7 +457,7 @@ def generate_synthetic_dataset(num_queries: int = 35) -> list[EvaluationSample]:
             "relevant_document_ids": [],
             "relevant_chunk_ids": [],
             "expected_answer": "I do not know based on the provided context.",
-            "category": "General",
+            "category": "hard",
             "difficulty": "hard",
             "metadata": {"out_of_scope": True},
         },

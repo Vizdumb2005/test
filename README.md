@@ -1,258 +1,148 @@
-# Enterprise Hybrid RAG System
+# Enterprise RAG Intelligence
 
-## Overview
+An **evaluation-driven, retrieval-transparent** hybrid RAG platform. Every answer traces
+`query → expansion → dense + BM25 → fusion → CrossEncoder rerank → evidence → generation`,
+with measured quality and latency — not a generic chatbot.
 
-This is a Hybrid RAG (Retrieval-Augmented Generation) system that combines dense semantic retrieval, sparse lexical retrieval, cross-encoder reranking, and query expansion to deliver high-accuracy question answering over enterprise documents.
+> Production-oriented, deployment-ready, observable, retrieval-transparent.
+> What it is *not*: enterprise-scale, real-time analytics, or zero-hallucination — and it doesn't claim to be.
 
-**Why Hybrid RAG?**
+## Product at a glance
 
-Dense retrieval is strong at semantic similarity but can struggle with exact identifiers, acronyms, rare terminology, and lexical matches. BM25 is strong at exact lexical matching but may miss semantic equivalence. Hybrid retrieval combines both signals. Cross-encoder reranking then improves final relevance.
+| Surface | Route | What it shows |
+|---|---|---|
+| Dashboard | `/` | Live corpus state + latest measured benchmark (from APIs/reports, never hard-coded) |
+| Ask RAG | `/ask` | Grounded answers, confidence, clickable citations → evidence panel |
+| Retrieval Explorer | `/retrieval` | Full pipeline trace: expansion, dense, BM25, fusion, rerank, final context + stage latency |
+| Documents | `/documents` | Upload (drag & drop), search, inspect chunks, delete |
+| Evaluation | `/evaluation` | 5-strategy ablation, metric selector, category analysis |
+| Benchmarks | `/benchmark` | Background benchmark runner with live logs, latency tables, CSV exports |
+| Failures | `/failures` | Ranking-divergence inspection (empty state when zero failures) |
+| Monitoring | `/monitoring` | **Current session telemetry** (honestly labelled, process-local) |
+| Settings | `/settings` | Read-only runtime config; secrets never reach the browser |
 
-## Architecture
+## Retrieval pipeline
 
-```
-                         ┌─────────────────────┐
-                         │   User Query        │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                         ┌─────────────────────┐
-                         │ Query Preprocessing │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                         ┌─────────────────────┐
-                         │ Query Expansion     │
-                         └──────────┬──────────┘
-                                    │
-                    ┌───────────────┴───────────────┐
-                    ▼                               ▼
-          ┌──────────────────┐             ┌──────────────────┐
-          │ Dense Retrieval  │             │ Sparse Retrieval │
-          │ Qdrant           │             │ BM25             │
-          └────────┬─────────┘             └────────┬─────────┘
-                   │                                │
-                   └──────────────┬─────────────────┘
-                                  ▼
-                       ┌──────────────────────┐
-                       │ Hybrid Result Fusion │
-                       │ RRF / weighted score │
-                       └────────────┬─────────┘
-                                    │
-                                    ▼
-                       ┌──────────────────────┐
-                       │ Cross Encoder        │
-                       │ Reranking            │
-                       └────────────┬─────────┘
-                                    │
-                                    ▼
-                       ┌──────────────────────┐
-                       │ Context Construction │
-                       └────────────┬─────────┘
-                                    │
-                                    ▼
-                       ┌──────────────────────┐
-                       │ LLM Answer Generator │
-                       └────────────┬─────────┘
-                                    │
-                                    ▼
-                       ┌──────────────────────┐
-                       │ Answer + Citations   │
-                       └──────────────────────┘
-```
+1. **Query preprocessing** — normalization
+2. **Query expansion** — LLM or local synonyms
+3. **Dense retrieval** — Sentence-Transformers (`all-MiniLM-L6-v2`) + Qdrant
+4. **Sparse retrieval** — BM25 persistent index
+5. **Hybrid fusion** — RRF or weighted score
+6. **CrossEncoder reranking** — `ms-marco-MiniLM-L-6-v2`
+7. **Context construction** — dedup + budget fit
+8. **Answer generation** — OpenAI-compatible LLM or `mock` demo provider, with citations
 
-## Retrieval Pipeline
+## Evaluation methodology
 
-1. **Query Preprocessing** - Normalizes and prepares the user query
-2. **Query Expansion** - Generates alternative phrasings via LLM or local synonyms
-3. **Dense Retrieval** - Sentence-Transformers embeddings + Qdrant vector search
-4. **Sparse Retrieval** - BM25 lexical matching with persistent index
-5. **Hybrid Fusion** - RRF or weighted score fusion of dense and sparse results
-6. **Cross-Encoder Reranking** - Reranks top candidates for better precision
-7. **Context Construction** - Deduplicates and fits chunks within budget
-8. **Answer Generation** - LLM generates grounded answers with citations
+35 synthetic enterprise queries across categories (`exact_term, keyword, semantic,
+acronym, multi_hop, hard`), K ∈ {1, 3, 5, 10}, metrics Precision/Recall/F1/MRR/NDCG/Hit-Rate,
+five strategies ablated on the same query set. The benchmark uses **real Qdrant, real BM25,
+real Sentence-Transformer, real CrossEncoder, real latency measurements**. Methodology was
+not tuned for this pass — numbers below are the checked-in `reports/` artefacts, also served
+live at `/api/reports/*`.
 
-## Why Hybrid RAG?
-
-| Scenario | Best Method |
-|----------|-------------|
-| Exact terminology, IDs, acronyms | BM25 |
-| Semantic similarity, paraphrases | Dense |
-| Mixed queries, production quality | Hybrid |
-| Top precision required | Hybrid + Reranker |
-
-## Benchmark Results
-
-Real evaluation on 35 synthetic enterprise queries:
+## Benchmark results (latest generated report)
 
 | System | NDCG@5 | Recall@5 | Precision@5 | MRR |
-|--------|--------|----------|-------------|-----|
-| Dense | 0.8669 | 0.9429 | 0.1886 | 0.8491 |
-| BM25 | 0.8969 | 0.9429 | 0.1886 | 0.8874 |
-| Hybrid | 0.8774 | 0.9714 | 0.1943 | 0.8498 |
-| Hybrid + Reranker | 1.0000 | 1.0000 | 0.2000 | 1.0000 |
-| Hybrid + Expansion + Reranker | 1.0000 | 1.0000 | 0.2000 | 1.0000 |
+|---|---|---|---|---|
+| Dense | 0.9007 | 0.9429 | 0.1886 | 0.8857 |
+| BM25 | 0.9218 | 0.9429 | 0.1886 | 0.9143 |
+| Hybrid | 0.9323 | 0.9429 | 0.1886 | 0.9286 |
+| Hybrid + Reranker | 0.9429 | 0.9429 | 0.1886 | 0.9429 |
+| Hybrid + Expansion + Reranker | 0.9429 | 0.9429 | 0.1886 | 0.9429 |
 
-## Ablation Study
+## Latency (real measurements, CPU)
 
-| Experiment | NDCG@5 | Recall@5 | Precision@5 | Latency |
-|------------|--------|----------|-------------|---------|
-| Dense only | 0.8669 | 0.9429 | 0.1886 | ~0.05ms |
-| BM25 only | 0.8969 | 0.9429 | 0.1886 | ~0.07ms |
-| Hybrid | 0.8774 | 0.9714 | 0.1943 | ~0.07ms |
-| Hybrid + Reranker | 1.0000 | 1.0000 | 0.2000 | ~0.07ms |
-| Hybrid + Expansion + Reranker | 1.0000 | 1.0000 | 0.2000 | ~0.05ms |
+| System | Mean (ms) | P50 (ms) | P95 (ms) |
+|---|---|---|---|
+| Dense retrieval | 19.85 | 17.47 | 30.30 |
+| BM25 retrieval | 0.30 | 0.29 | 0.34 |
+| Hybrid retrieval | 3.78 | 3.58 | 5.95 |
+| Hybrid + Reranker retrieval | 420.03 | 419.50 | 486.22 |
+| Hybrid + Expansion + Reranker retrieval | 417.38 | 414.59 | 469.91 |
 
-## Evaluation Metrics
+Takeaway: fusion adds single-digit milliseconds; the CrossEncoder dominates end-to-end latency (~420 ms p50 on CPU) and buys the NDCG@5 lift from 0.9323 → 0.9429.
 
-- **Precision@K** - Relevant retrieved / K
-- **Recall@K** - Relevant retrieved / total relevant
-- **F1@K** - Harmonic mean of precision and recall
-- **MRR** - Mean Reciprocal Rank
-- **NDCG@K** - Normalized Discounted Cumulative Gain
-- **Hit Rate@K** - Whether any relevant document was retrieved
+## Failure analysis
 
-## Setup
+Latest run: **0 failures / 175** — the Failures page renders an explicit empty state in that case and paginates real divergence records otherwise.
+
+## Local setup
 
 ```bash
-python -m pip install -e ".[dev]"
-make install
+pip install -e ".[dev]"
+docker compose up -d qdrant
+make demo            # seed synthetic corpus (or: python -m scripts.seed_demo)
+make run             # API on :8000
+cd frontend && npm install && npm run dev   # UI on :5173 (proxies /api → :8000)
 ```
 
-## Run
+## Docker deployment
 
 ```bash
-make run
-# or
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+docker compose up --build                       # dev
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d   # prod overlay
 ```
 
-## Docker
+Production image: non-root `appuser`, `HEALTHCHECK` on `/health`, persistent
+`qdrant_data` + `model_cache` volumes, `unless-stopped` restarts, JSON log rotation.
+Frontend ships as a static bundle (`frontend/Dockerfile`, nginx) configured at build
+time via `VITE_API_BASE_URL`.
+
+## Environment variables
+
+See `.env.example`, `.env.development.example`, `.env.production.example`.
+Key ones: `QDRANT_URL`, `EMBEDDING_MODEL`, `RERANKER_MODEL`, `DENSE/SPARSE/RERANK_TOP_K`,
+`HYBRID_METHOD`, `HYBRID_ALPHA`, `QUERY_EXPANSION_ENABLED`, `LLM_PROVIDER` (`openai`|`mock`),
+`LLM_MODEL`, `LLM_API_KEY` (never committed, never exposed via API), `CORS_ORIGINS`,
+`RATE_LIMIT_*`, `MAX_UPLOAD_SIZE_MB`, and frontend `VITE_API_BASE_URL`.
+
+## API
+
+Full interactive docs at `/docs` (tags: System, health, documents, search, query, debug, evaluation).
+Versioned aliases under `/api/v1/*` preserve existing consumers. Every response carries
+`X-Request-ID`; retrieval responses also embed `request_id` in the body.
 
 ```bash
-make docker-up
-```
-
-## API Usage
-
-```bash
-# Health check
 curl http://localhost:8000/health
-
-# Search
-curl -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is the remote work policy?", "top_k": 5}'
-
-# Ask question
-curl -X POST http://localhost:8000/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is the remote work policy?", "top_k": 5}'
-
-# Debug retrieval
-curl -X POST http://localhost:8000/debug/retrieval \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is the remote work policy?", "top_k": 5}'
-
-# Evaluate
-curl -X POST http://localhost:8000/evaluate
-
-# Evaluation results
-curl http://localhost:8000/evaluation/results
+curl -X POST http://localhost:8000/search -H 'Content-Type: application/json' -d '{"query": "SLA for P1?", "top_k": 5}'
+curl -X POST http://localhost:8000/query  -H 'Content-Type: application/json' -d '{"query": "SLA for P1?", "top_k": 5}'
+curl -X POST http://localhost:8000/debug/retrieval -H 'Content-Type: application/json' -d '{"query": "SLA for P1?"}'
+curl http://localhost:8000/api/system/status
+curl http://localhost:8000/api/monitoring/summary
 ```
 
-## CLI
+## UI
+
+`frontend/` — React + TypeScript + Vite + Tailwind. `npm run build` → `dist/`;
+`npm run typecheck` for types. No secrets in the bundle; API endpoint via `VITE_API_BASE_URL`.
+
+## Testing
 
 ```bash
-python -m scripts.ingest ./data/raw
-python -m scripts.evaluate
-python -m scripts.benchmark
+make test            # pytest — 52 passed, 3 skipped (baseline preserved)
+cd frontend && npm run build && npm run typecheck
 ```
 
-## Tests
+## Deployment notes (any cloud)
 
-```bash
-make test
-```
+Backend: any container host + managed Qdrant (or the composed one) + `LLM_PROVIDER=mock`
+for keyless demos. Frontend: any static host with `VITE_API_BASE_URL` pointed at the API.
+Health: `/health` (load-balancer) + `/api/system/status` (detail). See `docs/architecture.md`
+for stores, lifecycle, and the deliberate no-persistent-monitoring decision.
 
-## Project Structure
+## Known limitations
 
-```
-enterprise-hybrid-rag/
-├── src/
-│   ├── api/
-│   │   ├── routes/
-│   │   ├── schemas/
-│   │   └── dependencies.py
-│   ├── ingestion/
-│   │   ├── loaders/
-│   │   ├── chunking/
-│   │   ├── preprocessing/
-│   │   └── pipeline.py
-│   ├── retrieval/
-│   │   ├── dense/
-│   │   ├── sparse/
-│   │   ├── hybrid/
-│   │   ├── reranking/
-│   │   └── query_expansion/
-│   ├── generation/
-│   │   ├── prompts/
-│   │   ├── providers/
-│   │   └── pipeline.py
-│   ├── evaluation/
-│   │   ├── metrics/
-│   │   ├── datasets/
-│   │   ├── runners/
-│   │   └── reports/
-│   ├── core/
-│   │   ├── config.py
-│   │   ├── logging.py
-│   │   ├── metrics.py
-│   │   └── models.py
-│   └── main.py
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── evaluation/
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── evaluation/
-├── scripts/
-│   ├── ingest.py
-│   ├── evaluate.py
-│   └── benchmark.py
-├── reports/
-├── docker-compose.yml
-├── Dockerfile
-├── pyproject.toml
-├── .env.example
-├── Makefile
-└── README.md
-```
+- Qdrant must be reachable for dense retrieval, upload indexing, and benchmarks (APIs degrade honestly with actionable messages).
+- CrossEncoder reranking costs ~420 ms p50 on CPU; GPU or a smaller reranker changes the trade-off.
+- Query expansion needs an OpenAI-compatible endpoint or falls back to local synonyms.
+- Monitoring is session-local; benchmark job history is in-memory (reports persist to `reports/`).
+- BM25 index is a local pickle file; document registry is aggregated from Qdrant at read time.
 
-## Configuration
+## Future improvements
 
-Environment variables control all behavior:
-
-```env
-APP_ENV=development
-QDRANT_URL=http://localhost:6333
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
-DENSE_TOP_K=30
-SPARSE_TOP_K=30
-RERANK_TOP_K=8
-HYBRID_METHOD=rrf
-HYBRID_ALPHA=0.65
-QUERY_EXPANSION_ENABLED=true
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-```
-
-## Known Limitations
-
-- Qdrant must be running for dense retrieval endpoints
-- Cross-encoder reranking requires `sentence-transformers` package
-- Query expansion uses OpenAI-compatible API when configured
-- BM25 index is persisted to local pickle file
+- Streaming answer tokens (SSE) for long generations
+- Persistent evaluation history DB + trend charts
+- Redis-backed rate limiting for multi-replica deployments
+- AuthN/Z (API keys / OIDC) for multi-tenant use
+- GPU benchmark profile and reranker distillation experiments

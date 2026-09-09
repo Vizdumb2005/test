@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from ...api.schemas.schemas import SearchRequest, DebugRetrievalResponse
 from ...core.logging import logger
 from ...core.config import settings
@@ -7,9 +7,10 @@ router = APIRouter(tags=["debug"])
 
 
 @router.post("/debug/retrieval", response_model=DebugRetrievalResponse)
-async def debug_retrieval(request: SearchRequest):
+async def debug_retrieval(request: SearchRequest, http_request: Request):
+    request_id = getattr(http_request.state, "request_id", None)
     try:
-        logger.info("Debug retrieval request", query=request.query)
+        logger.info("Debug retrieval request", query=request.query, request_id=request_id)
 
         from src.retrieval.hybrid.fusion import HybridRetriever
         hybrid_retriever = HybridRetriever()
@@ -40,7 +41,8 @@ async def debug_retrieval(request: SearchRequest):
             reranked_results=debug_info.get("reranked_results", []),
             final_context=debug_info.get("final_context", []),
             latency_ms=debug_info.get("latency_ms", {}),
+            request_id=request_id,
         )
     except Exception as e:
-        logger.error("Debug retrieval failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Debug retrieval failed", error=str(e), request_id=request_id)
+        raise HTTPException(status_code=500, detail=(str(e) if settings.debug else 'Request failed. Check server logs with the X-Request-ID header.'))

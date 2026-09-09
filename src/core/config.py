@@ -48,5 +48,12 @@ class Settings(BaseSettings):
     api_workers: int = 1
     max_upload_size_mb: int = 50
 
+    # Production hardening (additive; safe defaults preserve dev behavior)
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    rate_limit_enabled: bool = True
+    rate_limit_query_per_min: int = 60
+    rate_limit_eval_per_min: int = 10
+    rate_limit_upload_per_min: int = 30
+
 
 settings = Settings()

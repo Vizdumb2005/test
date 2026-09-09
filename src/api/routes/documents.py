@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from pathlib import Path
 from typing import Optional
 from ...core.logging import logger
 from ...core.config import settings
@@ -53,6 +54,15 @@ async def batch_ingest(request: BatchIngestRequest):
     return results
 
 
+def _sanitize_filename(filename: str) -> str:
+    """Strip path components and unsafe characters to prevent path traversal."""
+    import re
+
+    name = Path(filename).name  # drop any directory components
+    name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
+    return name[:128] or "upload"
+
+
 @router.post("/upload", response_model=IngestResponse)
 async def upload_document(
     file: UploadFile = File(...),
@@ -61,13 +71,13 @@ async def upload_document(
     import json
     import os
     import tempfile
-    from pathlib import Path
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
+    safe_name = _sanitize_filename(file.filename)
     allowed_types = {".pdf", ".txt", ".md", ".docx"}
-    ext = Path(file.filename).suffix.lower()
+    ext = Path(safe_name).suffix.lower()
     if ext not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
 

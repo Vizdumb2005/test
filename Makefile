@@ -1,4 +1,4 @@
-.PHONY: help install test lint format run ingest evaluate benchmark clean docker-build docker-up docker-down
+.PHONY: help install test lint format run ingest evaluate benchmark demo seed clean docker-build docker-up docker-down docker-prod frontend-install frontend-dev frontend-build
 
 help:
 	@echo "Enterprise Hybrid RAG - Available commands"
@@ -42,6 +42,21 @@ evaluate:
 
 benchmark:
 	python -m scripts.benchmark
+
+demo seed:
+	python -m scripts.seed_demo
+
+frontend-install:
+	cd frontend && npm install
+
+frontend-dev:
+	cd frontend && npm run dev
+
+frontend-build:
+	cd frontend && npm run build
+
+docker-prod:
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 
 docker-build:
 	docker compose build

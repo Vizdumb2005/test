@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from ...api.schemas.schemas import QueryRequest, QueryResponse, RetrievalResultItem
 from ...core.logging import logger
 from ...core.config import settings
@@ -40,9 +40,10 @@ def _extract_citations(context_chunks: list, answer_text: str) -> list[dict]:
 
 
 @router.post("/query", response_model=QueryResponse)
-async def query(request: QueryRequest):
+async def query(request: QueryRequest, http_request: Request):
+    request_id = getattr(http_request.state, "request_id", None)
     try:
-        logger.info("Query request", query=request.query)
+        logger.info("Query request", query=request.query, request_id=request_id)
 
         hybrid_retriever = _get_hybrid_retriever()
 
@@ -91,12 +92,19 @@ async def query(request: QueryRequest):
         citations = _extract_citations(context_chunks, answer_text)
         confidence = 0.8 if context_chunks else 0.2
 
+        try:
+            from ...core.telemetry import telemetry
+            telemetry.record_retrieval_run(retrieval_results.get("latency_ms", {}))
+        except Exception:
+            pass
+
         return QueryResponse(
             query=request.query,
             answer=answer_text,
             citations=citations,
             confidence=confidence,
             latency_ms=retrieval_results.get("latency_ms", {}),
+            request_id=request_id,
             retrieval_results=[
                 RetrievalResultItem(
                     rank=r["rank"],
@@ -111,4 +119,4 @@ async def query(request: QueryRequest):
         )
     except Exception as e:
         logger.error("Query failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=(str(e) if settings.debug else 'Request failed. Check server logs with the X-Request-ID header.'))

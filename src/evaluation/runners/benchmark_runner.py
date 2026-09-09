@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import random
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -36,6 +35,7 @@ class ExperimentResult:
     query_count: int
     failure_count: int
     failures: list[dict[str, Any]]
+    category_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 class BenchmarkRunner:
@@ -54,6 +54,7 @@ class BenchmarkRunner:
         self._latency_tracker = LatencyTracker()
         self._failures: list[dict[str, Any]] = []
         self._experiment_results: dict[str, ExperimentResult] = {}
+        self._stage_latencies: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     def _ensure_data(self) -> None:
         if not self._documents:
@@ -68,6 +69,27 @@ class BenchmarkRunner:
 
     def get_latency_stats(self) -> dict[str, dict[str, Optional[float]]]:
         return self._latency_tracker.summary()
+
+    def get_stage_latencies(self) -> dict[str, dict[str, dict[str, Optional[float]]]]:
+        result = {}
+        for method, stages in self._stage_latencies.items():
+            result[method] = {}
+            for stage, values in stages.items():
+                if not values:
+                    result[method][stage] = {"mean": None, "p50": None, "p95": None, "p99": None, "min": None, "max": None}
+                    continue
+                sorted_vals = sorted(values)
+                n = len(sorted_vals)
+                result[method][stage] = {
+                    "mean": sum(values) / n,
+                    "median": sorted_vals[int(n * 0.5)],
+                    "p50": sorted_vals[int(n * 0.5)],
+                    "p95": sorted_vals[min(int(n * 0.95), n - 1)],
+                    "p99": sorted_vals[min(int(n * 0.99), n - 1)],
+                    "min": min(values),
+                    "max": max(values),
+                }
+        return result
 
     def get_failure_analysis(self) -> dict[str, Any]:
         total_queries = len(self._dataset) * max(len(self.retrieval_methods), 1)
@@ -92,7 +114,7 @@ class BenchmarkRunner:
         dataset = dataset or self._dataset
 
         if not self.retrieval_methods:
-            self.retrieval_methods = self._build_default_methods()
+            raise ValueError("No retrieval methods configured. Pass retrieval_methods to BenchmarkRunner.")
 
         ablation_results: dict[str, Any] = {}
         self._failures.clear()
@@ -100,8 +122,8 @@ class BenchmarkRunner:
         for method_name, retrieval_fn in self.retrieval_methods.items():
             logger.info("Running experiment", method=method_name)
             method_metrics: list[MetricResult] = []
-            stage_latencies: dict[str, list[float]] = defaultdict(list)
             method_failures: list[dict[str, Any]] = []
+            category_metrics: dict[str, list[MetricResult]] = defaultdict(list)
 
             for sample in dataset:
                 retrieval_start = time.perf_counter()
@@ -109,7 +131,7 @@ class BenchmarkRunner:
                     raw_results = await retrieval_fn(sample.query, max(self.ks))
                 except Exception as exc:
                     elapsed_ms = (time.perf_counter() - retrieval_start) * 1000
-                    stage_latencies["retrieval"].append(elapsed_ms)
+                    self._stage_latencies[method_name]["retrieval"].append(elapsed_ms)
                     self._latency_tracker.track(f"{method_name}.retrieval", elapsed_ms)
                     logger.error(
                         "Retrieval failed",
@@ -123,6 +145,7 @@ class BenchmarkRunner:
                             "query": sample.query,
                             "error": str(exc),
                             "stage": "retrieval",
+                            "category": sample.category,
                         }
                     )
                     self._failures.append(
@@ -131,19 +154,20 @@ class BenchmarkRunner:
                             "query": sample.query,
                             "error": str(exc),
                             "stage": "retrieval",
+                            "category": sample.category,
                         }
                     )
                     raw_results = []
 
                 retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
-                stage_latencies["retrieval"].append(retrieval_ms)
+                self._stage_latencies[method_name]["retrieval"].append(retrieval_ms)
                 self._latency_tracker.track(f"{method_name}.retrieval", retrieval_ms)
 
                 metric_start = time.perf_counter()
                 retrieval_results = self._to_retrieval_results(raw_results)
                 sample_metrics = compute_all_metrics(sample, retrieval_results, ks=self.ks)
                 metric_ms = (time.perf_counter() - metric_start) * 1000
-                stage_latencies["metrics"].append(metric_ms)
+                self._stage_latencies[method_name]["metrics"].append(metric_ms)
                 self._latency_tracker.track(f"{method_name}.metrics", metric_ms)
 
                 for m in sample_metrics:
@@ -156,9 +180,22 @@ class BenchmarkRunner:
                             category=sample.category,
                         )
                     )
+                    category_metrics[sample.category].append(
+                        MetricResult(
+                            name=m.name,
+                            value=m.value,
+                            retrieval_method=method_name,
+                            query_id=sample.query,
+                            category=sample.category,
+                        )
+                    )
 
             aggregated = self._aggregate(method_metrics)
-            latency_stats = self._compute_latency_stats(stage_latencies)
+            category_aggregated = {
+                cat: self._aggregate(metrics)
+                for cat, metrics in category_metrics.items()
+            }
+            latency_stats = self._compute_latency_stats(method_name)
 
             experiment = ExperimentResult(
                 method_name=method_name,
@@ -167,6 +204,7 @@ class BenchmarkRunner:
                 query_count=len(dataset),
                 failure_count=len(method_failures),
                 failures=method_failures,
+                category_metrics=category_aggregated,
             )
             self._experiment_results[method_name] = experiment
 
@@ -175,12 +213,14 @@ class BenchmarkRunner:
                 "latency": latency_stats,
                 "query_count": len(dataset),
                 "failure_count": len(method_failures),
+                "category_metrics": category_aggregated,
             }
 
         return {
             "experiments": ablation_results,
             "summary": self._build_summary(ablation_results),
             "latency": self._latency_tracker.summary(),
+            "stage_latencies": self.get_stage_latencies(),
             "ablation_results": ablation_results,
         }
 
@@ -188,62 +228,9 @@ class BenchmarkRunner:
         self,
         dataset: Optional[list[EvaluationSample]] = None,
     ) -> dict[str, Any]:
-        ablation_methods = {
-            "dense_only": self._simulate_dense,
-            "bm25_only": self._simulate_bm25,
-            "hybrid": self._simulate_hybrid,
-            "hybrid+reranker": self._simulate_hybrid_reranker,
-            "hybrid+expansion+reranker": self._simulate_hybrid_expansion_reranker,
-        }
-        self.retrieval_methods = ablation_methods
+        if not self.retrieval_methods:
+            raise ValueError("No retrieval methods configured. Pass retrieval_methods for ablation.")
         return await self.run(dataset)
-
-    def _to_retrieval_results(self, results: list[RetrievalResult]) -> list[RetrievalResult]:
-        if results and isinstance(results[0], RetrievalResult):
-            return results
-        return results
-
-    def _aggregate(self, metrics: list[MetricResult]) -> dict[str, float]:
-        grouped: dict[str, list[float]] = defaultdict(list)
-        for m in metrics:
-            grouped[m.name].append(m.value)
-        return {name: sum(vals) / len(vals) for name, vals in grouped.items()}
-
-    def _build_summary(self, experiments: dict[str, Any]) -> dict[str, Any]:
-        summary = {}
-        for method, data in experiments.items():
-            summary[method] = {
-                metric: round(value, 4)
-                for metric, value in data.get("metrics", {}).items()
-            }
-        return summary
-
-    def _compute_latency_stats(
-        self, stage_latencies: dict[str, list[float]]
-    ) -> dict[str, dict[str, Optional[float]]]:
-        stats: dict[str, dict[str, Optional[float]]] = {}
-        for stage, values in stage_latencies.items():
-            if not values:
-                stats[stage] = {"mean": None, "p50": None, "p95": None, "p99": None}
-                continue
-            sorted_vals = sorted(values)
-            n = len(sorted_vals)
-            stats[stage] = {
-                "mean": sum(values) / n,
-                "p50": sorted_vals[int(n * 0.5)],
-                "p95": sorted_vals[min(int(n * 0.95), n - 1)],
-                "p99": sorted_vals[min(int(n * 0.99), n - 1)],
-            }
-        return stats
-
-    def _build_default_methods(self) -> dict[str, RetrievalFunc]:
-        return {
-            "dense_only": self._simulate_dense,
-            "bm25_only": self._simulate_bm25,
-            "hybrid": self._simulate_hybrid,
-            "hybrid+reranker": self._simulate_hybrid_reranker,
-            "hybrid+expansion+reranker": self._simulate_hybrid_expansion_reranker,
-        }
 
     async def _simulate_dense(self, query: str, top_k: int) -> list[RetrievalResult]:
         self._ensure_data()
@@ -272,6 +259,7 @@ class BenchmarkRunner:
         score_jitter: float = 0.1,
         boost_relevant: bool = False,
     ) -> list[RetrievalResult]:
+        import random
         keywords = [w.lower() for w in query.split() if len(w) > 3]
         sample = next((s for s in self._dataset if s.query == query), None)
         relevant_chunk_ids = set(sample.relevant_chunk_ids) if sample else set()
@@ -305,3 +293,45 @@ class BenchmarkRunner:
         for rank, item in enumerate(results, start=1):
             item.rank = rank
         return results
+
+    def _to_retrieval_results(self, results: list[RetrievalResult]) -> list[RetrievalResult]:
+        if results and isinstance(results[0], RetrievalResult):
+            return results
+        return results
+
+    def _aggregate(self, metrics: list[MetricResult]) -> dict[str, float]:
+        grouped: dict[str, list[float]] = defaultdict(list)
+        for m in metrics:
+            grouped[m.name].append(m.value)
+        return {name: sum(vals) / len(vals) for name, vals in grouped.items()}
+
+    def _build_summary(self, experiments: dict[str, Any]) -> dict[str, Any]:
+        summary = {}
+        for method, data in experiments.items():
+            summary[method] = {
+                metric: round(value, 4)
+                for metric, value in data.get("metrics", {}).items()
+            }
+        return summary
+
+    def _compute_latency_stats(
+        self, method_name: str
+    ) -> dict[str, dict[str, Optional[float]]]:
+        stages = self._stage_latencies.get(method_name, {})
+        stats: dict[str, dict[str, Optional[float]]] = {}
+        for stage, values in stages.items():
+            if not values:
+                stats[stage] = {"mean": None, "p50": None, "p95": None, "p99": None, "min": None, "max": None, "median": None}
+                continue
+            sorted_vals = sorted(values)
+            n = len(sorted_vals)
+            stats[stage] = {
+                "mean": sum(values) / n,
+                "median": sorted_vals[int(n * 0.5)],
+                "p50": sorted_vals[int(n * 0.5)],
+                "p95": sorted_vals[min(int(n * 0.95), n - 1)],
+                "p99": sorted_vals[min(int(n * 0.99), n - 1)],
+                "min": min(values),
+                "max": max(values),
+            }
+        return stats

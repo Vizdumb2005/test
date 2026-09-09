@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Any, Optional
 
 import structlog
@@ -28,7 +29,7 @@ class QdrantService:
     @property
     def client(self) -> QdrantClient:
         if self._client is None:
-            self._client = QdrantClient(url=self.url)
+            self._client = QdrantClient(url=self.url, check_compatibility=False)
             self._ensure_collection(recreate=self._recreate)
         return self._client
 
@@ -58,6 +59,9 @@ class QdrantService:
             vectors_config=rest.VectorParams(size=self.vector_size, distance=rest.Distance.COSINE),
         )
 
+    def _resolve_point_id(self, chunk_id: str) -> str:
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_id))
+
     def upsert(
         self,
         points: list[dict[str, Any]],
@@ -69,9 +73,10 @@ class QdrantService:
         logger.debug("upserting_points", collection=self.collection_name, count=len(points))
         qdrant_points = []
         for point in points:
+            point_id = self._resolve_point_id(point["chunk_id"])
             qdrant_points.append(
                 rest.PointStruct(
-                    id=str(point["chunk_id"]),
+                    id=point_id,
                     vector=point["vector"],
                     payload={
                         "chunk_id": point["chunk_id"],
@@ -86,11 +91,12 @@ class QdrantService:
                 )
             )
 
-        self.client.upsert(
-            collection_name=self.collection_name,
-            points=qdrant_points,
-            batch_size=batch_size,
-        )
+        for i in range(0, len(qdrant_points), batch_size):
+            batch = qdrant_points[i:i + batch_size]
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=batch,
+            )
         logger.info("upsert_complete", collection=self.collection_name, count=len(qdrant_points))
 
     def search(
@@ -101,17 +107,15 @@ class QdrantService:
         score_threshold: Optional[float] = None,
     ) -> list[dict[str, Any]]:
         logger.debug("searching_collection", collection=self.collection_name, top_k=top_k)
-        results = self.client.search(
+        results = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
-            query_filter=filter_conditions,
-            score_threshold=score_threshold,
             with_payload=True,
         )
 
         formatted = []
-        for hit in results:
+        for hit in results.points:
             payload = hit.payload or {}
             formatted.append(
                 {

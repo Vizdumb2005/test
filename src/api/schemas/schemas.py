@@ -62,6 +62,7 @@ class SearchResponse(BaseModel):
     results: list[RetrievalResultItem]
     latency_ms: dict[str, float]
     expanded_queries: list[str] = Field(default_factory=list)
+    request_id: Optional[str] = None
 
 
 class QueryResponse(BaseModel):
@@ -71,6 +72,7 @@ class QueryResponse(BaseModel):
     confidence: float
     latency_ms: dict[str, float]
     retrieval_results: list[RetrievalResultItem]
+    request_id: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -97,6 +99,7 @@ class DebugRetrievalResponse(BaseModel):
     reranked_results: list[dict[str, Any]]
     final_context: list[dict[str, Any]]
     latency_ms: dict[str, float]
+    request_id: Optional[str] = None
 
 
 class EvaluationResultResponse(BaseModel):
@@ -105,7 +108,7 @@ class EvaluationResultResponse(BaseModel):
     total_queries: int
     metrics: dict[str, Any]
     ablation_results: dict[str, Any]
-    failure_analysis: list[dict[str, Any]]
+    failure_analysis: dict[str, Any]
     latency_stats: dict[str, Any]
 
 
