@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
   pages: write
   id-token: write
 
@@ -23,7 +22,10 @@ env:
   APP_DIR: /opt/enterprise-rag
 
 jobs:
-  deploy-frontend:
+  # ------------------------------------------------------------------ #
+  # Frontend: build + deploy to GitHub Pages (native, no gh-pages branch needed)
+  # ------------------------------------------------------------------ #
+  build-frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -46,13 +48,28 @@ jobs:
           VITE_API_BASE_URL: http://${{ env.ORACLE_HOST }}:${{ env.BACKEND_PORT }}
         run: npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./frontend/dist
-          publish_branch: gh-pages
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
 
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy-frontend:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  # ------------------------------------------------------------------ #
+  # Backend: build + deploy to Oracle VM via SSH + Docker
+  # ------------------------------------------------------------------ #
   deploy-backend:
     runs-on: ubuntu-latest
     needs: deploy-frontend
@@ -91,12 +108,12 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $ORACLE_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H ${{ env.ORACLE_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
           echo "SSH key configured"
 
       - name: Upload image to Oracle VM
         run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa enterprise-rag.tar $ORACLE_USER@$ORACLE_HOST:/tmp/
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa enterprise-rag.tar ${{ env.ORACLE_USER }}@${{ env.ORACLE_HOST }}:/tmp/
           echo "Image uploaded to Oracle VM"
 
       - name: Deploy to Oracle VM
