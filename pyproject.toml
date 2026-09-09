@@ -1,0 +1,77 @@
+[project]
+name = "enterprise-hybrid-rag"
+version = "0.1.0"
+description = "Production-grade Enterprise Hybrid RAG system with evaluation pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Enterprise RAG Team"}
+]
+keywords = ["rag", "hybrid-retrieval", "enterprise", "llm", "qdrant"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sentence-transformers>=2.2.0",
+    "qdrant-client>=1.7.0",
+    "rank-bm25>=0.2.2",
+    "cross-encoder>=0.4.0",
+    "python-dotenv>=1.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "python-multipart>=0.0.6",
+    "httpx>=0.25.0",
+    "tenacity>=8.2.0",
+    "aiofiles>=23.3.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "markdown>=3.5.0",
+    "beautifulsoup4>=4.12.0",
+    "structlog>=23.2.0",
+    "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "black>=23.11.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 120
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--tb=short -v"
