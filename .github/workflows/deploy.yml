@@ -5,6 +5,15 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 env:
   QDRANT_URL: https://773125ea-efc2-4c2c-81dd-9b4be54c5a66.europe-west6-0.gcp.cloud.qdrant.io
   ORACLE_HOST: 140.238.251.154
@@ -46,6 +55,8 @@ jobs:
   deploy-backend:
     runs-on: ubuntu-latest
     needs: deploy-frontend
+    env:
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +67,7 @@ jobs:
         run: docker save enterprise-rag:latest > enterprise-rag.tar
 
       - name: Upload image to Oracle VM
-        uses: appleboy/scp-action@v1.2.0
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ env.ORACLE_HOST }}
           username: ${{ env.ORACLE_USER }}
@@ -66,16 +77,18 @@ jobs:
           target: "/tmp/"
 
       - name: Deploy to Oracle VM
-        uses: appleboy/ssh-action@v1.2.0
+        env:
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          QDRANT_URL: ${{ env.QDRANT_URL }}
+          APP_DIR: ${{ env.APP_DIR }}
+          ORACLE_USER: ${{ env.ORACLE_USER }}
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.ORACLE_HOST }}
           username: ${{ env.ORACLE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           envs: QDRANT_API_KEY,QDRANT_URL,APP_DIR,ORACLE_USER
-          env:
-            QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
-            QDRANT_URL: ${{ env.QDRANT_URL }}
           script: |
             set -e
             sudo mkdir -p $APP_DIR
@@ -154,7 +167,7 @@ jobs:
             echo "Backend deployed and started on port 8000"
 
       - name: Verify deployment
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.ORACLE_HOST }}
           username: ${{ env.ORACLE_USER }}
