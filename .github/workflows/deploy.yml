@@ -1,0 +1,175 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  QDRANT_URL: https://773125ea-efc2-4c2c-81dd-9b4be54c5a66.europe-west6-0.gcp.cloud.qdrant.io
+  ORACLE_HOST: 140.238.251.154
+  ORACLE_USER: ubuntu
+  BACKEND_PORT: 8000
+  APP_DIR: /opt/enterprise-rag
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_BASE_URL: http://${{ env.ORACLE_HOST }}:${{ env.BACKEND_PORT }}
+        run: npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: deploy-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t enterprise-rag:latest .
+
+      - name: Save image tarball
+        run: docker save enterprise-rag:latest > enterprise-rag.tar
+
+      - name: Upload image to Oracle VM
+        uses: appleboy/scp-action@v1.2.0
+        with:
+          host: ${{ env.ORACLE_HOST }}
+          username: ${{ env.ORACLE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "enterprise-rag.tar"
+          target: "/tmp/"
+
+      - name: Deploy to Oracle VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.ORACLE_HOST }}
+          username: ${{ env.ORACLE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          envs: QDRANT_API_KEY,QDRANT_URL,APP_DIR,ORACLE_USER
+          env:
+            QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+            QDRANT_URL: ${{ env.QDRANT_URL }}
+          script: |
+            set -e
+            sudo mkdir -p $APP_DIR
+            sudo chown $ORACLE_USER:$ORACLE_USER $APP_DIR
+            cd $APP_DIR
+
+            # Generate .env.production on the server (git-ignored, never committed)
+            cat > .env.production <<PROD
+            APP_ENV=production
+            DEBUG=false
+            LOG_LEVEL=info
+            QDRANT_URL=$QDRANT_URL
+            QDRANT_COLLECTION=enterprise_documents
+            QDRANT_API_KEY=$QDRANT_API_KEY
+            EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+            RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+            EMBEDDING_BATCH_SIZE=32
+            DENSE_TOP_K=30
+            SPARSE_TOP_K=30
+            RERANK_TOP_K=8
+            HYBRID_METHOD=rrf
+            HYBRID_ALPHA=0.65
+            RRF_K=60
+            QUERY_EXPANSION_ENABLED=true
+            QUERY_EXPANSION_COUNT=3
+            QUERY_EXPANSION_MODEL=gpt-4o-mini
+            CHUNK_SIZE=800
+            CHUNK_OVERLAP=120
+            CHUNKING_STRATEGY=recursive
+            CONTEXT_MAX_CHUNKS=8
+            CONTEXT_MAX_CHARACTERS=30000
+            LLM_PROVIDER=mock
+            LLM_MODEL=gpt-4o-mini
+            LLM_API_KEY=
+            LLM_TEMPERATURE=0.1
+            LLM_MAX_TOKENS=1024
+            API_HOST=0.0.0.0
+            API_PORT=8000
+            API_WORKERS=1
+            MAX_UPLOAD_SIZE_MB=50
+            CORS_ORIGINS=https://vizdumb2005.github.io
+            RATE_LIMIT_ENABLED=true
+            RATE_LIMIT_QUERY_PER_MIN=60
+            RATE_LIMIT_EVAL_PER_MIN=10
+            RATE_LIMIT_UPLOAD_PER_MIN=30
+            PROD
+
+            # Generate production docker-compose on the server
+            cat > docker-compose.prod.yml <<'COMPOSE'
+            version: '3.8'
+            services:
+              api:
+                image: enterprise-rag:latest
+                ports:
+                  - "8000:8000"
+                env_file:
+                  - .env.production
+                volumes:
+                  - ./data:/app/data
+                  - ./reports:/app/reports
+                  - model_cache:/home/appuser/.cache/huggingface
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+                  start_period: 90s
+            volumes:
+              model_cache:
+            COMPOSE
+
+            # Load image and start container
+            docker load -i /tmp/enterprise-rag.tar
+            docker-compose -f docker-compose.prod.yml up -d --force-recreate api
+            echo "Backend deployed and started on port 8000"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.ORACLE_HOST }}
+          username: ${{ env.ORACLE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd ${{ env.APP_DIR }}
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "API is healthy"
+                curl -sf http://localhost:8000/health | head -c 500
+                exit 0
+              fi
+              echo "Waiting for API... ($i/30)"
+              sleep 2
+            done
+            echo "API failed to start within 60s"
+            exit 1

@@ -13,7 +13,7 @@ async def health():
 
     try:
         from qdrant_client import QdrantClient
-        client = QdrantClient(url=settings.qdrant_url)
+        client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
         collections = client.get_collections()
         qdrant_connected = True
     except Exception as e:

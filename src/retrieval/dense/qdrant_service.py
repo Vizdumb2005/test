@@ -18,18 +18,20 @@ class QdrantService:
         url: Optional[str] = None,
         collection_name: Optional[str] = None,
         vector_size: Optional[int] = None,
+        api_key: Optional[str] = None,
         recreate: bool = False,
     ) -> None:
         self.url = url or settings.qdrant_url
         self.collection_name = collection_name or settings.qdrant_collection
         self.vector_size = vector_size or settings.qdrant_vector_size
+        self.api_key = api_key or settings.qdrant_api_key or None
         self._client: Optional[QdrantClient] = None
         self._recreate = recreate
 
     @property
     def client(self) -> QdrantClient:
         if self._client is None:
-            self._client = QdrantClient(url=self.url, check_compatibility=False)
+            self._client = QdrantClient(url=self.url, api_key=self.api_key, check_compatibility=False)
             self._ensure_collection(recreate=self._recreate)
         return self._client
 

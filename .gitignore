@@ -5,6 +5,7 @@ __pycache__
 venv/
 .env
 .env.local
+.env.production
 .env.*.local
 data/raw/*
 !data/raw/.gitkeep

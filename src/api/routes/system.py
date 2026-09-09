@@ -55,7 +55,7 @@ def _read_csv(name: str) -> Optional[list[dict[str, Any]]]:
 def _qdrant_client():
     from qdrant_client import QdrantClient
 
-    return QdrantClient(url=settings.qdrant_url, timeout=5)
+    return QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None, timeout=5)
 
 
 def _service_status(name: str, check) -> dict[str, Any]:
