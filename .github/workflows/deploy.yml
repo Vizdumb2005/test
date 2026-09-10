@@ -104,3 +104,49 @@ jobs:
             /user/packages/docker/test/enterprise-rag/visibility \
             -f visibility='public' 2>/dev/null || true
           echo "Package visibility set (any errors are non-fatal)"
+
+  # ------------------------------------------------------------------ #
+  # Oracle VM: SSH deploy + permanent URL
+  # ------------------------------------------------------------------ #
+  oracle-deploy:
+    runs-on: ubuntu-latest
+    needs: [build-frontend, deploy-backend]
+    env:
+      ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+      ORACLE_USERNAME: ${{ secrets.ORACLE_USERNAME || 'opc' }}
+      ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure SSH key and known hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$ORACLE_SSH_KEY" > ~/.ssh/oracle_key
+          chmod 600 ~/.ssh/oracle_key
+          ssh-keyscan -p 22 "$ORACLE_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy deploy script to Oracle
+        run: |
+          scp -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no scripts/deploy-to-oracle.sh "$ORACLE_USERNAME@$ORACLE_HOST:/tmp/deploy-to-oracle.sh"
+
+      - name: Run deployment on Oracle
+        run: |
+          ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no "$ORACLE_USERNAME@$ORACLE_HOST" 'bash /tmp/deploy-to-oracle.sh'
+
+      - name: Resolve permanent public URL
+        id: url
+        run: |
+          PUBLIC_IP=$(ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no "$ORACLE_USERNAME@$ORACLE_HOST" 'curl -s ifconfig.me')
+          echo "url=http://$PUBLIC_IP" >> $GITHUB_OUTPUT
+          echo "api_url=http://$PUBLIC_IP:8000" >> $GITHUB_OUTPUT
+          echo "docs_url=http://$PUBLIC_IP:8000/docs" >> $GITHUB_OUTPUT
+          echo "Resolved public URL: http://$PUBLIC_IP"
+
+      - name: Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend:** ${{ steps.url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**API:** ${{ steps.url.outputs.api_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Docs:** ${{ steps.url.outputs.docs_url }}" >> $GITHUB_STEP_SUMMARY
