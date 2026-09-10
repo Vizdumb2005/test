@@ -122,22 +122,24 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          echo "$ORACLE_SSH_KEY" > ~/.ssh/oracle_key
+          echo "$ORACLE_SSH_KEY" | tr -d '\r' > ~/.ssh/oracle_key
           chmod 600 ~/.ssh/oracle_key
           ssh-keyscan -p 22 "$ORACLE_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/oracle_key
 
       - name: Copy deploy script to Oracle
         run: |
-          scp -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no scripts/deploy-to-oracle.sh "$ORACLE_USERNAME@$ORACLE_HOST:/tmp/deploy-to-oracle.sh"
+          scp -o StrictHostKeyChecking=no scripts/deploy-to-oracle.sh "$ORACLE_USERNAME@$ORACLE_HOST:/tmp/deploy-to-oracle.sh"
 
       - name: Run deployment on Oracle
         run: |
-          ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no "$ORACLE_USERNAME@$ORACLE_HOST" 'bash /tmp/deploy-to-oracle.sh'
+          ssh -o StrictHostKeyChecking=no "$ORACLE_USERNAME@$ORACLE_HOST" 'bash /tmp/deploy-to-oracle.sh'
 
       - name: Resolve permanent public URL
         id: url
         run: |
-          PUBLIC_IP=$(ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no "$ORACLE_USERNAME@$ORACLE_HOST" 'curl -s ifconfig.me')
+          PUBLIC_IP=$(ssh -o StrictHostKeyChecking=no "$ORACLE_USERNAME@$ORACLE_HOST" 'curl -s ifconfig.me')
           echo "url=http://$PUBLIC_IP" >> $GITHUB_OUTPUT
           echo "api_url=http://$PUBLIC_IP:8000" >> $GITHUB_OUTPUT
           echo "docs_url=http://$PUBLIC_IP:8000/docs" >> $GITHUB_OUTPUT
