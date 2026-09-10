@@ -113,7 +113,7 @@ jobs:
     needs: [build-frontend, deploy-backend]
     env:
       ORACLE_HOST: 140.238.251.154
-      ORACLE_USERNAME: ${{ secrets.ORACLE_USERNAME || 'opc' }}
+      ORACLE_USERNAME: virensinghemail
       ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
     steps:
       - uses: actions/checkout@v4
