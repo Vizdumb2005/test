@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Server-side deployment script for the Oracle VM.
-# Run this after every GitHub Actions push to deploy the latest image.
+# Run this after every GitHub Actions push to deploy the latest images.
 #
 # Prerequisites:
 #   1. Docker Engine + docker compose plugin installed on this server
@@ -12,7 +12,8 @@ set -euo pipefail
 #   3. .env.production in this directory (run the generate step below if missing)
 
 APP_DIR="/opt/enterprise-rag"
-IMAGE="ghcr.io/vizdumb2005/test/enterprise-rag:latest"
+BACKEND_IMAGE="ghcr.io/vizdumb2005/test/enterprise-rag:latest"
+FRONTEND_IMAGE="ghcr.io/vizdumb2005/test/enterprise-rag-frontend:latest"
 
 echo "=== Enterprise RAG - Oracle VM Deployment ==="
 
@@ -56,7 +57,7 @@ API_HOST=0.0.0.0
 API_PORT=8000
 API_WORKERS=1
 MAX_UPLOAD_SIZE_MB=50
-CORS_ORIGINS=https://vizdumb2005.github.io
+CORS_ORIGINS=*
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_QUERY_PER_MIN=60
 RATE_LIMIT_EVAL_PER_MIN=10
@@ -73,9 +74,11 @@ if [ -f ~/.ghcr-token ]; then
     cat ~/.ghcr-token | docker login ghcr.io -u "${GITHUB_USER:-vizdumb2005}" --password-stdin
 fi
 
-# Pull latest image
-echo "Pulling $IMAGE..."
-docker pull "$IMAGE"
+# Pull latest images
+echo "Pulling $BACKEND_IMAGE..."
+docker pull "$BACKEND_IMAGE"
+echo "Pulling $FRONTEND_IMAGE..."
+docker pull "$FRONTEND_IMAGE"
 
 # Generate docker-compose if not present
 if [ ! -f docker-compose.prod.yml ]; then
@@ -99,29 +102,56 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+  frontend:
+    image: ghcr.io/vizdumb2005/test/enterprise-rag-frontend:latest
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
   model_cache:
 COMPOSE
     echo "Created docker-compose.prod.yml"
 fi
 
-# Restart with latest image
-echo "Restarting container..."
+# Restart with latest images
+echo "Restarting containers..."
 docker-compose -f docker-compose.prod.yml pull
 docker-compose -f docker-compose.prod.yml up -d --force-recreate
 
-# Wait for health check
+# Wait for health checks
 echo "Waiting for API to become healthy..."
 for i in $(seq 1 45); do
     if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
         echo "API is healthy!"
         curl -sf http://localhost:8000/health | head -c 500
         echo
-        exit 0
+        break
     fi
     echo "  Waiting... ($i/45)"
     sleep 2
 done
-echo "ERROR: API failed to start within 90s"
-docker-compose -f docker-compose.prod.yml logs --tail 50
-exit 1
+
+echo "Waiting for frontend to become healthy..."
+for i in $(seq 1 15); do
+    if curl -sf http://localhost/ > /dev/null 2>&1; then
+        echo "Frontend is healthy!"
+        break
+    fi
+    echo "  Waiting... ($i/15)"
+    sleep 2
+done
+
+echo "Deployment complete!"
+echo "Frontend: http://$(curl -s ifconfig.me)"
+echo "API: http://$(curl -s ifconfig.me):8000"
+echo "Docs: http://$(curl -s ifconfig.me):8000/docs"

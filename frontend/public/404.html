@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enterprise RAG Intelligence</title>
+    <script>
+      (function() {
+        var path = window.location.pathname;
+        var base = '/test/';
+        if (path.indexOf(base) === 0) {
+          path = path.substring(base.length);
+        }
+        if (path && path !== '/') {
+          window.history.replaceState({}, '', base + path);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/test/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, apiBase } from '../lib/api';
 import { EmptyState, ErrorBox, LatencyBars, SectionTitle } from '../components/ui';
 
 interface Job {
@@ -156,7 +156,7 @@ export default function Benchmark() {
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {['benchmark', 'ablation', 'latency', 'category'].map((k) => (
-              <a key={k} href={`/api/reports/export?kind=${k}`} className="rounded border border-slate-300 px-2 py-1 font-medium text-slate-600 hover:border-blue-400 hover:text-blue-700" download>
+              <a key={k} href={`${apiBase}/api/reports/export?kind=${k}`} className="rounded border border-slate-300 px-2 py-1 font-medium text-slate-600 hover:border-blue-400 hover:text-blue-700" download>
                 Export {k}.csv
               </a>
             ))}
